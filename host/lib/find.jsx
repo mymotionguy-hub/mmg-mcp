@@ -45,12 +45,16 @@ MMG.ae.findLayer = function (comp, ref) {
   return l;
 };
 
-/** Run fn inside one undo group. Use for every AE edit. */
+/** Run fn inside one undo group. Use for every AE edit. Nested calls (batch) share the outer group. */
+MMG.ae.undoDepth = 0;
 MMG.ae.undo = function (label, fn) {
-  app.beginUndoGroup('MMG: ' + label);
+  var outer = MMG.ae.undoDepth === 0;
+  if (outer) app.beginUndoGroup('MMG: ' + label);
+  MMG.ae.undoDepth++;
   try {
     return fn();
   } finally {
-    app.endUndoGroup();
+    MMG.ae.undoDepth--;
+    if (outer) app.endUndoGroup();
   }
 };

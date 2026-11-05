@@ -38,11 +38,23 @@ vm.runInContext(readFileSync(join(repo, 'host/lib/json.jsx'), 'utf8'), ctx);
 vm.runInContext(readFileSync(join(repo, 'host/lib/core.jsx'), 'utf8'), ctx);
 ctx.BridgeTalk = { appName: 'aftereffects' };
 ctx.CompItem = function () {};
-ctx.app = { version: '25.0x1', project: { file: null, numItems: 2, activeItem: null } };
+const undo = { begin: 0, end: 0 };
+ctx.app = {
+  version: '25.0x1', project: { file: null, numItems: 2, activeItem: null },
+  beginUndoGroup() { undo.begin++; }, endUndoGroup() { undo.end++; },
+};
+vm.runInContext(readFileSync(join(repo, 'host/lib/find.jsx'), 'utf8'), ctx);
+vm.runInContext(readFileSync(join(repo, 'host/ae/batch.jsx'), 'utf8'), ctx);
 const fakeFns = {
   ae_getCompState(a) {
     if (a.comp && a.comp !== 'Main "Comp"\u2028') this.fail('No comp named "' + a.comp + '".');
     return { comp: { name: a.comp || 'Main', width: 1920, height: 1080, fps: 25 }, layers: [{ index: 1, name: 'Títle ✓', type: 'text' }] };
+  },
+  ae_setTransform(a) {
+    return ctx.MMG.ae.undo('Set transform', () => {
+      if (a.layer === 99) this.fail('Layer 99 does not exist.');
+      return { layer: { index: a.layer, transform: a.props } };
+    });
   },
   ae_exportFrame(a) {
     writeFileSync(a.path, PNG);
@@ -84,8 +96,12 @@ await client.connect(new StdioClientTransport({
 const text = (r) => r.content.find((c) => c.type === 'text').text;
 
 const { tools } = await client.listTools();
-assert.deepEqual(tools.map((t) => t.name).sort(), ['ae_exportFrame', 'ae_getCompState', 'status']);
-ok('lists 3 tools');
+const names = tools.map((t) => t.name);
+assert.equal(names.length, 17);
+assert.ok(names.includes('ae_batch') && names.includes('ae_animateText'));
+const hostSrc = jsxFiles(join(repo, 'host')).map((f) => readFileSync(f, 'utf8')).join(' ');
+for (const n of names.filter((n) => n !== 'status')) assert.ok(hostSrc.includes('MMG.fns.' + n + ' ='), 'host function missing: ' + n);
+ok('lists 17 tools, each has a host function');
 
 let r = await client.callTool({ name: 'status', arguments: {} });
 let s = JSON.parse(text(r));
@@ -113,6 +129,40 @@ assert.equal(img.mimeType, 'image/png');
 assert.equal(Buffer.from(img.data, 'base64').equals(PNG), true);
 assert.equal(JSON.parse(text(r)).time, 1.2);
 ok('ae_exportFrame returns the PNG');
+
+// Batch: one undo group for nested edits, server-side validation, stop on first failure
+r = await client.callTool({ name: 'ae_batch', arguments: { steps: [
+  { tool: 'ae_getCompState', args: {} },
+  { tool: 'ae_setTransform', args: { layer: 1, props: { opacity: 50 } } },
+  { tool: 'ae_setTransform', args: { layer: 'Title', props: { scale: 80 } } },
+] } });
+s = JSON.parse(text(r));
+assert.equal(r.isError, undefined);
+assert.equal(s.completed, 3);
+assert.deepEqual(s.results[1].layer.transform, { opacity: 50 });
+assert.deepEqual(undo, { begin: 1, end: 1 });
+ok('ae_batch runs all steps in ONE undo group');
+
+r = await client.callTool({ name: 'ae_batch', arguments: { steps: [{ tool: 'ae_setTransform', args: { props: {} } }] } });
+assert.equal(r.isError, true);
+assert.match(text(r), /Step 1 \(ae_setTransform\): .*layer/s);
+r = await client.callTool({ name: 'ae_batch', arguments: { steps: [{ tool: 'ae_exportFrame', args: {} }] } });
+assert.equal(r.isError, true);
+assert.match(text(r), /can't be used in a batch/);
+assert.equal(undo.begin, 1);
+ok('ae_batch rejects bad steps before touching AE');
+
+r = await client.callTool({ name: 'ae_batch', arguments: { steps: [
+  { tool: 'ae_setTransform', args: { layer: 1, props: { opacity: 10 } } },
+  { tool: 'ae_setTransform', args: { layer: 99, props: { opacity: 10 } } },
+] } });
+s = JSON.parse(text(r));
+assert.equal(r.isError, true);
+assert.equal(s.completed, 1);
+assert.equal(s.error.step, 2);
+assert.match(s.error.message, /Layer 99/);
+assert.deepEqual(undo, { begin: 2, end: 2 });
+ok('ae_batch stops at the failing step and reports it');
 
 server.close();
 r = await client.callTool({ name: 'ae_getCompState', arguments: {} });

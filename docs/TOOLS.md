@@ -10,6 +10,8 @@ Inputs in brackets; `?` = optional. Times in seconds. Every tool returns JSON.
 |---|---|---|
 | `ae_getCompState` | Active or named comp: size, fps, duration, layers (name, index, type, in/out, parent, effects) | comp? |
 | `ae_createComp` | New comp | name, width, height, fps, duration, bgColor? |
+| `ae_duplicateComp` | Copy a comp before big changes (added in chunk 2) | comp?, name? |
+| `ae_setProperty` | Static value on any property, e.g. effect params (added in chunk 2) | layer, property, value |
 | `ae_addLayer` | Solid, shape (rect/ellipse), null, adjustment, or camera | comp?, kind, name?, color?, size? |
 | `ae_addText` | Text layer | comp?, text, name?, font?, size?, color?, position?, align? |
 | `ae_styleText` | Font, size, fill, stroke, tracking, leading | layer, props |
