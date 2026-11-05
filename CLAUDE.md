@@ -35,8 +35,8 @@ Claude Desktop / Claude Code
 ## Build chunks (one fresh session each)
 - [x] 1 Foundation: repo layout, server, panel, bridge, 3 tools (`status`, `ae_getCompState`, `ae_exportFrame`), install scripts (Win `install.ps1`, Mac `install.sh`, dev-mode unsigned extension)
 - [x] 2 After Effects tools (docs/TOOLS.md §AE)
-- [ ] 3 Premiere tools (docs/TOOLS.md §Premiere)
-- [ ] 4 Footage scanner + packaging + `docs/TEAM-GUIDE.md`
+- [x] 3 Premiere tools (docs/TOOLS.md §Premiere)
+- [x] 4 Footage scanner + packaging + `docs/TEAM-GUIDE.md`
 - [ ] 5 Fixes from `docs/BUGS.md` (team writes bugs there)
 
 ## Working cheaply

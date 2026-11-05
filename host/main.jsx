@@ -19,6 +19,7 @@ $.global.MMG = $.global.MMG || {};
   $.evalFile(new File(hostDir.fsName + '/lib/core.jsx'));
   $.evalFile(new File(hostDir.fsName + '/lib/find.jsx'));
   $.evalFile(new File(hostDir.fsName + '/lib/ae-props.jsx'));
+  $.evalFile(new File(hostDir.fsName + '/lib/ppro-find.jsx'));
 
   if (BridgeTalk.appName === 'aftereffects') loadFolder('ae');
   else if (BridgeTalk.appName === 'premierepro') loadFolder('ppro');

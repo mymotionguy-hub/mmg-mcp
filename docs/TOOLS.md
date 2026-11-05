@@ -33,6 +33,7 @@ Inputs in brackets; `?` = optional. Times in seconds. Every tool returns JSON.
 | `pr_import` | Import files/folders into a bin | paths[], bin? |
 | `pr_organize` | Create bins, move items into bins, rename items, set label colors | actions[] |
 | `pr_createSequence` | New sequence from preset or from a clip's settings | name, fromClip? |
+| `pr_duplicateSequence` | Copy a sequence before big edits (added in chunk 3) | sequence?, name? |
 | `pr_placeClip` | Insert or overwrite a project item at a time on a track | item, track, time, mode?, in?, out? |
 | `pr_cut` | Razor at time(s); remove a range with ripple (close gap) | track?, times[] or range |
 | `pr_trimMove` | Trim clip in/out, move clip, enable/disable, remove | clip, action, args |

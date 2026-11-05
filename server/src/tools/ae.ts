@@ -1,9 +1,8 @@
-import { mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { z } from 'zod';
 import { callHost } from '../bridge.js';
-import { jsonResult, ToolDef } from './types.js';
+import { imageResult, newFramePath, waitForFile } from '../frames.js';
+import { makeBatch } from './batch.js';
+import { ToolDef } from './types.js';
 
 // ---------- shared input pieces ----------
 
@@ -34,43 +33,6 @@ const ease = z
   );
 
 const EDIT_NOTE = ' Returns the new state. Read ae_getCompState first; check ae_exportFrame after visual changes.';
-
-// ---------- frame export helpers ----------
-
-const FRAME_DIR = join(tmpdir(), 'mmg-mcp');
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** Delete frames older than an hour so the temp folder doesn't grow forever. */
-function cleanOldFrames() {
-  try {
-    const cutoff = Date.now() - 60 * 60 * 1000;
-    for (const f of readdirSync(FRAME_DIR)) {
-      const p = join(FRAME_DIR, f);
-      if (f.endsWith('.png') && statSync(p).mtimeMs < cutoff) unlinkSync(p);
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
-/** AE may finish writing the PNG a moment after the script returns: wait until the size stops changing. */
-async function waitForFile(path: string, timeoutMs: number): Promise<number> {
-  const end = Date.now() + timeoutMs;
-  let last = -1;
-  while (Date.now() < end) {
-    try {
-      const size = statSync(path).size;
-      if (size > 0 && size === last) return size;
-      last = size;
-    } catch {
-      /* not there yet */
-    }
-    await sleep(150);
-  }
-  if (last > 0) return last;
-  throw new Error(`After Effects didn't save the frame (nothing at ${path}).`);
-}
 
 // ---------- tools ----------
 
@@ -308,55 +270,20 @@ export const aeTools: ToolDef[] = [
         .describe('Time in seconds from the comp start. Leave out to use the current time indicator.'),
     },
     run: async ({ comp, time }) => {
-      mkdirSync(FRAME_DIR, { recursive: true });
-      cleanOldFrames();
-      const path = join(FRAME_DIR, `ae-frame-${Date.now()}.png`);
-      // ExtendScript is happy with forward slashes on both Windows and Mac.
-      const data = await callHost('ae', 'ae_exportFrame', { comp, time, path: path.replace(/\\/g, '/') }, 120_000);
-      const size = await waitForFile(path, 30_000);
-      const info = { ...data, path, bytes: size };
-      if (size > MAX_IMAGE_BYTES) {
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify({ ...info, note: 'Frame is too big to show here; it was saved to the path above.' }) },
-          ],
-        };
-      }
-      return {
-        content: [
-          { type: 'image', data: readFileSync(path).toString('base64'), mimeType: 'image/png' },
-          { type: 'text', text: JSON.stringify(info) },
-        ],
-      };
+      const path = newFramePath('ae-frame');
+      const data = await callHost('ae', 'ae_exportFrame', { comp, time, path }, 120_000);
+      const got = await waitForFile([path], 30_000, 'After Effects');
+      return imageResult(got.path, got.size, data);
     },
   },
 ];
 
-// ---------- batch ----------
-
-const batchable = aeTools.filter((t) => t.hostFn && !t.run);
-const byName = new Map(batchable.map((t) => [t.name, t]));
-
-aeTools.push({
-  name: 'ae_batch',
-  description:
-    `Run many After Effects edits in one call and one undo step (Ctrl+Z undoes the whole batch). Each step is {tool, args} with the same args as that tool. Stops at the first failing step and reports it; earlier steps stay applied. Allowed tools: ${batchable.map((t) => t.name).join(', ')}.`,
-  input: {
-    steps: z
-      .array(z.object({ tool: z.string(), args: z.record(z.string(), z.any()).optional() }))
-      .min(1)
-      .max(200),
-  },
-  run: async ({ steps }) => {
-    const prepared = (steps as { tool: string; args?: object }[]).map((s, i) => {
-      const t = byName.get(s.tool);
-      if (!t) throw new Error(`Step ${i + 1}: "${s.tool}" can't be used in a batch. Allowed: ${[...byName.keys()].join(', ')}.`);
-      const parsed = z.object(t.input).safeParse(s.args ?? {});
-      if (!parsed.success) throw new Error(`Step ${i + 1} (${s.tool}): ${z.prettifyError(parsed.error)}`);
-      return { fn: t.hostFn, args: parsed.data };
-    });
-    const data = await callHost('ae', 'ae_batch', { steps: prepared }, 300_000);
-    if (data?.error) return { isError: true, content: [{ type: 'text', text: JSON.stringify(data) }] };
-    return jsonResult(data);
-  },
-});
+aeTools.push(
+  makeBatch(
+    'ae',
+    'ae_batch',
+    'ae_batch',
+    aeTools,
+    'Run many After Effects edits in one call and one undo step (Ctrl+Z undoes the whole batch).',
+  ),
+);

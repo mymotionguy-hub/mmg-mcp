@@ -35,6 +35,27 @@ MMG.call = function (fn, argsJson) {
   return MMG.JSON.stringify(out);
 };
 
+/** Run steps [{fn, args}] in order; stop at the first failure. Used by ae_batch and pr_batch. */
+MMG.runBatch = function (steps, self) {
+  var results = [];
+  for (var i = 0; i < steps.length; i++) {
+    var name = steps[i].fn, f = MMG.fns[name];
+    if (typeof f !== 'function' || name === self) {
+      return { completed: i, results: results, error: { step: i + 1, message: 'Unknown step "' + name + '".' } };
+    }
+    try {
+      results.push(f(steps[i].args || {}));
+    } catch (e) {
+      return {
+        completed: i,
+        results: results,
+        error: { step: i + 1, fn: name, message: String(e && e.message ? e.message : e), line: e && !e.mmgUser ? e.line : null }
+      };
+    }
+  }
+  return { completed: steps.length, results: results };
+};
+
 MMG.fns.common_status = function () {
   var name = BridgeTalk.appName;
   var r = { app: name, version: String(app.version) };
