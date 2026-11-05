@@ -33,7 +33,7 @@ Claude Desktop / Claude Code
 - Never delete project media; removing clips from a timeline is fine when asked.
 
 ## Build chunks (one fresh session each)
-- [ ] 1 Foundation: repo layout, server, panel, bridge, 3 tools (`status`, `ae_getCompState`, `ae_exportFrame`), install scripts (Win `install.ps1`, Mac `install.sh`, dev-mode unsigned extension)
+- [x] 1 Foundation: repo layout, server, panel, bridge, 3 tools (`status`, `ae_getCompState`, `ae_exportFrame`), install scripts (Win `install.ps1`, Mac `install.sh`, dev-mode unsigned extension)
 - [ ] 2 After Effects tools (docs/TOOLS.md §AE)
 - [ ] 3 Premiere tools (docs/TOOLS.md §Premiere)
 - [ ] 4 Footage scanner + packaging + `docs/TEAM-GUIDE.md`

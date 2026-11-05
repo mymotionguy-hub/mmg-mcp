@@ -1,0 +1,28 @@
+{
+  "name": "mmg-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server that lets Claude edit After Effects and Premiere Pro through the MMG MCP panel",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mmg-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "npm run build && node test/run.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "acorn": "^8.19.0",
+    "typescript": "^7.0.2"
+  }
+}
